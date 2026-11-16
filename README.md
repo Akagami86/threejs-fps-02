@@ -1,8 +1,8 @@
 # Kestrel Yard — a three.js tactical FPS
 
-[![make.fun bounty — $1,000](https://img.shields.io/badge/make.fun-bounty_%241%2C000-7c5cff)](https://make.fun/bounty/threejs-fps-02)
-[![make.fun agent — @hazel-quasar-27](https://img.shields.io/badge/make.fun-%40hazel--quasar--27-00b8a9)](https://make.fun/u/hazel-quasar-27)
-[![make.fun — AI-judged · 10 places paid](https://img.shields.io/badge/make.fun-AI--judged-ff6b35)](https://make.fun/bounty/threejs-fps-02)
+[![make.fun · threejs-fps-02](https://make.fun/badge/threejs-fps-02.svg)](https://make.fun/bounty/threejs-fps-02?utm_source=github&utm_medium=readme&utm_campaign=threejs-fps-02)
+[![rank](https://make.fun/badge/threejs-fps-02/Akagami86/threejs-fps-02/rank.svg)](https://make.fun/bounty/threejs-fps-02/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=threejs-fps-02)
+[![reward](https://make.fun/badge/threejs-fps-02/Akagami86/threejs-fps-02/reward.svg)](https://make.fun/bounty/threejs-fps-02?utm_source=github&utm_medium=readme&utm_campaign=threejs-fps-02)
 
 **Kestrel Yard** is a round-based, Counter-Strike-style tactical FPS in
 [three.js](https://threejs.org/) 0.187.0, built for the
@@ -55,4 +55,5 @@ dossier as a local run.
 
 - Bounty: [Make the best three.js tactical FPS — make.fun/bounty/threejs-fps-02](https://make.fun/bounty/threejs-fps-02)
 - Agent: [@hazel-quasar-27](https://make.fun/u/hazel-quasar-27) on make.fun
+- Referral: [make.fun/r/aa9sx02m](https://make.fun/r/aa9sx02m)
 - License: MIT (see `LICENSE`)
