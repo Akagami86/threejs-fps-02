@@ -7,9 +7,12 @@
 // marksman scope) and the deterministic ?shot= frames used for the entry's
 // screenshots: ?shot=start|play|end&seed=N stages a scene, steps the real
 // simulation, renders twice, freezes and sets window.__shotReady.
+// Two maps: ?map=yard (dusk, the default) or ?map=night (Night Shift —
+// the yard turned 90°, under floodlights). The map is picked at boot
+// from the URL; the start overlay offers both.
 import * as THREE from 'three';
-import { PALETTE } from './palette.js';
-import { createWorld, inSite, ATTACK_SPAWNS } from './world.js';
+import { PALETTE, NIGHT_PALETTE } from './palette.js';
+import { createWorld, inSite, MAPS } from './world.js';
 import { createInput } from './input.js';
 import { createPlayer } from './player.js';
 import { WEAPONS, GRENADE_PRICES, ARMOR_PRICE, damageAt, createArsenal } from './weapons.js';
@@ -23,6 +26,9 @@ const FIXED_STEP = 1 / 60;
 const params = new URLSearchParams(window.location.search);
 const shot = params.get('shot');
 const seed = Number.parseInt(params.get('seed') ?? '1', 10) || 1;
+// The map: ?map=night plays Night Shift, anything else the dusk yard.
+const MAP = MAPS[params.get('map') === 'night' ? 'night' : 'yard'];
+const ACTIVE_PALETTE = MAP.night ? NIGHT_PALETTE : PALETTE;
 
 function mulberry32(initial) {
   let a = initial;
@@ -44,16 +50,18 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.getElementById('game').appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(PALETTE.canvas);
-scene.fog = new THREE.Fog(new THREE.Color(PALETTE.canvas), 34, 95);
+scene.background = new THREE.Color(ACTIVE_PALETTE.canvas);
+scene.fog = MAP.night
+  ? new THREE.Fog(new THREE.Color(ACTIVE_PALETTE.canvas), 16, 70)
+  : new THREE.Fog(new THREE.Color(ACTIVE_PALETTE.canvas), 34, 95);
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.05, 220);
 scene.add(camera);
 
-const world = createWorld(scene);
+const world = createWorld(scene, MAP);
 const hud = createHud();
 const audio = createAudio();
 const effects = createEffects(scene, world.colliders);
-const player = createPlayer(world.colliders, ATTACK_SPAWNS[1][0], ATTACK_SPAWNS[1][1]);
+const player = createPlayer(world.colliders, MAP.attackSpawns[1][0], MAP.attackSpawns[1][1]);
 const arsenal = createArsenal(camera);
 
 const playerC = {
@@ -87,7 +95,7 @@ let plantBotT = 0;
 let defuseBotT = 0;
 let buySignature = '';
 
-const botsApi = createBots(scene, world, rng, { resolveShot });
+const botsApi = createBots(scene, world, rng, { resolveShot }, MAP);
 const combatants = [playerC, ...botsApi.bots.map((b) => b.combatant)];
 const allShootables = world.shootables.concat(botsApi.hitMeshes);
 
@@ -99,16 +107,16 @@ const rounds = createRounds({
     if (playerDied) { arsenal.dropToPistol(); playerC.armor = false; }
     else arsenal.topUp();
     arsenal.setVisible(true);
-    player.teleport(ATTACK_SPAWNS[1][0], ATTACK_SPAWNS[1][1], 0);
+    player.teleport(MAP.attackSpawns[1][0], MAP.attackSpawns[1][1], MAP.rotate ? -Math.PI / 2 : 0);
     deathT = 0;
-    botsApi.resetRound();
+    botsApi.resetRound(n);
     bombGroup.visible = false;
     hud.setBombPlanted(false);
     channel.kind = null;
     plantBotT = 0;
     defuseBotT = 0;
     hud.setChannel(null);
-    hud.banner(`ROUND ${n}`, 'Buy phase — spend with keys 1 to 7', 2200);
+    hud.banner(`ROUND ${n}`, n > 1 ? 'Buy phase — Harbour Watch has rotated its defence · keys 1 to 8' : 'Buy phase — spend with keys 1 to 8', 2200);
     buySignature = '';
   },
   onLive() {
@@ -144,12 +152,14 @@ const rounds = createRounds({
     const won = winner === 'atk';
     hud.showOverlay(
       won ? 'VICTORY' : 'DEFEAT',
-      `Final score — Ember ${rounds.state.scoreAtk} : ${rounds.state.scoreDef} Harbour Watch. ${won ? 'Kestrel Yard is yours.' : 'The yard keeps its secrets. Run it back.'}`,
+      `Final score — Ember ${rounds.state.scoreAtk} : ${rounds.state.scoreDef} Harbour Watch. ${won ? `${MAP.name} is yours.` : 'The yard keeps its secrets. Run it back.'}`,
       'Play again',
     );
     if (document.pointerLockElement) document.exitPointerLock();
   },
 });
+// The bomb's resting position is the active map's site centre.
+rounds.state.bombPos = { ...MAP.siteCenter };
 
 function counts() {
   let atkAlive = 0;
@@ -340,9 +350,10 @@ function detonate(kind, pos, sourceC) {
 // --- buy menu -----------------------------------------------------------------
 const BUY_ITEMS = [
   ['Digit1', 'smg', () => WEAPONS.smg],
-  ['Digit2', 'rifle', () => WEAPONS.rifle],
-  ['Digit3', 'shotgun', () => WEAPONS.shotgun],
-  ['Digit4', 'sniper', () => WEAPONS.sniper],
+  ['Digit2', 'burst', () => WEAPONS.burst],
+  ['Digit3', 'rifle', () => WEAPONS.rifle],
+  ['Digit4', 'shotgun', () => WEAPONS.shotgun],
+  ['Digit5', 'sniper', () => WEAPONS.sniper],
 ];
 function buyRow(key, label, price, owned) {
   const cls = owned ? 'owned' : rounds.state.money < price ? 'cant' : '';
@@ -356,16 +367,16 @@ function refreshBuyPanel() {
     n += 1;
     rows.push(buyRow(n, get().name, get().price, arsenal.has(key)));
   }
-  rows.push(buyRow(5, 'HE grenade', GRENADE_PRICES.he, grenades.he > 0));
-  rows.push(buyRow(6, 'Flash grenade', GRENADE_PRICES.flash, grenades.flash > 0));
-  rows.push(buyRow(7, 'Armour vest', ARMOR_PRICE, playerC.armor));
+  rows.push(buyRow(6, 'HE grenade', GRENADE_PRICES.he, grenades.he > 0));
+  rows.push(buyRow(7, 'Flash grenade', GRENADE_PRICES.flash, grenades.flash > 0));
+  rows.push(buyRow(8, 'Armour vest', ARMOR_PRICE, playerC.armor));
   const sig = rows.join('|') + rounds.state.money;
   if (sig === buySignature) return;
   buySignature = sig;
   hud.showBuy(rows.join(''));
 }
 function tryBuy(tapped) {
-  const map = { Digit1: 'smg', Digit2: 'rifle', Digit3: 'shotgun', Digit4: 'sniper' };
+  const map = { Digit1: 'smg', Digit2: 'burst', Digit3: 'rifle', Digit4: 'shotgun', Digit5: 'sniper' };
   for (const code of Object.keys(map)) {
     if (!tapped.has(code)) continue;
     const key = map[code];
@@ -374,12 +385,12 @@ function tryBuy(tapped) {
       arsenal.select(key);
     }
   }
-  if (tapped.has('Digit5') && grenades.he === 0 && rounds.spend(GRENADE_PRICES.he)) grenades.he = 1;
-  if (tapped.has('Digit6') && grenades.flash === 0 && rounds.spend(GRENADE_PRICES.flash)) grenades.flash = 1;
-  if (tapped.has('Digit7') && !playerC.armor && rounds.spend(ARMOR_PRICE)) playerC.armor = true;
+  if (tapped.has('Digit6') && grenades.he === 0 && rounds.spend(GRENADE_PRICES.he)) grenades.he = 1;
+  if (tapped.has('Digit7') && grenades.flash === 0 && rounds.spend(GRENADE_PRICES.flash)) grenades.flash = 1;
+  if (tapped.has('Digit8') && !playerC.armor && rounds.spend(ARMOR_PRICE)) playerC.armor = true;
 }
 function trySelect(tapped) {
-  const primaries = ['rifle', 'sniper', 'smg', 'shotgun'].filter((k) => arsenal.has(k));
+  const primaries = ['rifle', 'burst', 'sniper', 'smg', 'shotgun'].filter((k) => arsenal.has(k));
   if (tapped.has('Digit1')) arsenal.select('pistol');
   if (tapped.has('Digit2') && primaries[0]) arsenal.select(primaries[0]);
   if (tapped.has('Digit3') && primaries[1]) arsenal.select(primaries[1]);
@@ -393,8 +404,8 @@ function trySelect(tapped) {
 // --- channels: plant and defuse ------------------------------------------------
 function stepChannels(dt) {
   const phase = rounds.state.phase;
-  // The player plants with E, anywhere inside Site K.
-  if (phase === 'live' && playerC.alive && inSite(player.state.position.x, player.state.position.z)
+  // The player plants with E, anywhere inside the active map's site.
+  if (phase === 'live' && playerC.alive && inSite(MAP, player.state.position.x, player.state.position.z)
     && input.state.keys.has('KeyE') && player.groundSpeed() < 0.6) {
     channel.kind = 'plant';
     channel.bot = null;
@@ -500,7 +511,7 @@ function syncHud() {
   const label = s.phase === 'buy' ? `BUY ${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`
     : `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
   hud.setTimer([label, s.phaseT <= 10 && (s.phase === 'live' || s.phase === 'planted')]);
-  hud.setScore(`EMBER ${s.scoreAtk} — ${s.scoreDef} HARBOUR · ROUND ${s.round}`);
+  hud.setScore(`${MAP.name.toUpperCase()} · EMBER ${s.scoreAtk} — ${s.scoreDef} HARBOUR · ROUND ${s.round}`);
   const gText = `HE ×${grenades.he} [G] · FLASH ×${grenades.flash} [F]`;
   if (gText !== lastGrenadeText) { lastGrenadeText = gText; grenadeEl.textContent = gText; }
   if (s.phase === 'buy' && started) refreshBuyPanel();
@@ -526,6 +537,12 @@ hud.onPlay(() => {
   input.requestLock();
 });
 
+// The start overlay offers both maps; picking one reloads on it.
+for (const [id, map] of [['map-yard', 'yard'], ['map-night', 'night']]) {
+  const btn = document.getElementById(id);
+  if (btn) btn.addEventListener('click', () => { window.location.search = `?map=${map}`; });
+}
+
 function stepSim(dt) {
   simTime += dt;
   shakeT = Math.max(0, shakeT - dt);
@@ -545,6 +562,9 @@ function stepSim(dt) {
     if (trigger && arsenal.ready()) playerFire();
     else if (trigger && arsenal.wantsReload()) { arsenal.reload(); audio.reload(); }
     else if (input.state.firing && !wasFiring && arsenal.state.reloadLeft === 0 && arsenal.mag() === 0) audio.dryFire();
+    // A burst finishes itself: once the first round leaves, the remaining
+    // rounds fire on their own cadence until the burst is spent.
+    if (def.burst && arsenal.state.burstLeft > 0 && arsenal.ready()) playerFire();
     if (tapped.has('KeyR') && arsenal.reload()) audio.reload();
     if (tapped.has('KeyG')) throwGrenade('he');
     if (tapped.has('KeyF')) throwGrenade('flash');
@@ -583,13 +603,24 @@ function aimAt(point) {
 function settle(steps) {
   for (let i = 0; i < steps; i += 1) stepSim(FIXED_STEP);
 }
+// Staging coordinates are written in yard coordinates; on Night Shift
+// they rotate with the map, and the facing yaw turns 90° with them, so a
+// staged shot frames the same fight on either map.
+function stagePlayer(x, z, yaw) {
+  if (MAP.rotate) player.teleport(-z, x, yaw - Math.PI / 2);
+  else player.teleport(x, z, yaw);
+}
+function stageBot(bot, x, z, yaw) {
+  if (MAP.rotate) bot.bodyApi.teleport(-z, x, yaw - Math.PI / 2);
+  else bot.bodyApi.teleport(x, z, yaw);
+}
 function stageShot(name) {
   started = true;
   rounds.startMatch();
   if (name === 'start') {
-    player.teleport(0, 10, Math.PI);
+    stagePlayer(0, 10, Math.PI);
     settle(24);
-    hud.showOverlay('Kestrel Yard', 'You lead Ember Squad: plant the charge at Site K or eliminate Harbour Watch. First to 7 rounds takes the yard.', 'Click to play');
+    hud.showOverlay(MAP.name, `You lead Ember Squad on ${MAP.name}: plant the charge at the site or eliminate Harbour Watch. First to 7 rounds takes the yard.`, 'Click to play');
     refreshBuyPanel();
     syncCamera();
   } else if (name === 'play') {
@@ -599,17 +630,17 @@ function stageShot(name) {
     playerC.armor = true;
     rounds.state.phase = 'live';
     rounds.state.phaseT = 76;
-    player.teleport(2.5, 5.5, 0);
+    stagePlayer(2.5, 5.5, 0);
     const defs = botsApi.bots.filter((b) => b.team === 'def');
-    defs[0].bodyApi.teleport(-1, -5, Math.PI);
+    stageBot(defs[0], -1, -5, Math.PI);
     defs[0].combatant.health = 30;
     defs[0].mode = 'hold';
-    defs[0].scanYaw = Math.PI;
-    defs[1].bodyApi.teleport(7.5, 0.5, Math.PI * 0.82);
+    defs[0].scanYaw = defs[0].body.yaw;
+    stageBot(defs[1], 7.5, 0.5, Math.PI * 0.82);
     defs[1].mode = 'hold';
-    defs[1].scanYaw = Math.PI * 0.82;
+    defs[1].scanYaw = defs[1].body.yaw;
     const rook = botsApi.bots[0];
-    rook.bodyApi.teleport(0.2, 7.5, 0);
+    stageBot(rook, 0.2, 7.5, 0);
     rook.mode = 'hold';
     const chestOf = (bot) => new THREE.Vector3(bot.body.position.x, bot.body.position.y + 1.18, bot.body.position.z);
     settle(4);
@@ -633,15 +664,15 @@ function stageShot(name) {
     rounds.state.round = 9;
     rounds.state.phase = 'live';
     rounds.state.phaseT = 60;
-    rounds.plantBomb(0.5, -20);
+    rounds.plantBomb(MAP.siteCenter.x, MAP.siteCenter.z);
     rounds.state.phaseT = 4.2;
     for (const bot of botsApi.bots) {
       if (bot.team === 'def') { bot.combatant.health = 0; bot.combatant.alive = false; }
     }
-    player.teleport(0, -11.5, 0);
+    stagePlayer(0, -11.5, 0);
     settle(36);
     hud.banner('SITE SECURED', 'Ember takes the round · Ember 5 — 3 Harbour', 60000);
-    aimAt(new THREE.Vector3(0.5, 0.7, -20));
+    aimAt(new THREE.Vector3(MAP.siteCenter.x, 0.7, MAP.siteCenter.z));
   }
   syncHud();
   paintTwiceThenReady();
@@ -691,6 +722,14 @@ window.addEventListener('resize', () => {
 });
 
 rounds.startMatch();
+// The start overlay names the map this page loaded.
+hud.showOverlay(
+  MAP.name,
+  MAP.night
+    ? 'You lead Ember Squad on Night Shift: the yard turned sideways and lit by floodlights. Plant the charge at the east site or eliminate Harbour Watch. First to 7 rounds takes the yard.'
+    : 'A round-based tactical FPS in a dusk container yard. You lead Ember Squad: plant the charge at Site K or eliminate Harbour Watch. They will do the same to you. First to 7 rounds.',
+  'Click to play',
+);
 syncCamera();
 if (shot) stageShot(shot);
 else requestAnimationFrame(frame);

@@ -16,6 +16,23 @@ export const PALETTE = {
   moss: '#5d7350', // container green
 };
 
+// Night Shift: the same yard after dark. The sky and fog go near-black
+// blue, so the floodlights, lamp pools and the bomb lamp read as light
+// sources instead of decoration; the team colours stay the same so the
+// two maps read as one game, not two.
+export const NIGHT_PALETTE = {
+  canvas: '#070b14', // night sky / page background
+  surface: '#141a26',
+  hairline: '#232c3d',
+  ink: '#e8e4d6',
+  muted: '#7d8aa0',
+  accent: '#f0762a',
+  teal: '#2e8f86',
+  rust: '#8a3a28',
+  sand: '#a8936d',
+  moss: '#4c5f43',
+};
+
 export function shade(name) {
   return PALETTE[name];
 }

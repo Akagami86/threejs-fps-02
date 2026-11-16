@@ -97,6 +97,9 @@
   .panel p { color: var(--muted); line-height: 1.5; margin: 8px 0; font-size: 14.5px; }
   #play { margin-top: 14px; font: inherit; font-size: 16px; padding: 11px 22px; border: 1px solid var(--accent); border-radius: 8px; background: var(--accent); color: var(--canvas); cursor: pointer; }
   #play:hover { background: var(--ink); border-color: var(--ink); }
+  .map-pick { margin-top: 12px; display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--muted); }
+  .map-pick button { font: inherit; font-size: 13px; padding: 7px 12px; border: 1px solid var(--hairline); border-radius: 8px; background: transparent; color: var(--ink); cursor: pointer; }
+  .map-pick button:hover { border-color: var(--ink); }
   .keys { margin: 18px 0 0; padding: 0; list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 6px 18px; font-size: 13px; color: var(--muted); }
   .keys kbd { min-width: 22px; display: inline-block; padding: 1px 5px; border: 1px solid var(--hairline); border-radius: 4px; font-family: var(--font-readout); font-size: 11.5px; color: var(--ink); text-align: center; }
   @media (prefers-reduced-motion: reduce) { #hitmarker, #banner, #health-fill { transition-duration: 0.01ms; } }
@@ -126,7 +129,7 @@
   </div>
   <div id="banner"><div id="banner-title"></div><div id="banner-sub"></div></div>
   <div id="buy-panel" hidden>
-    <h2>BUY — KEYS 1 TO 7</h2>
+    <h2>BUY — KEYS 1 TO 8</h2>
     <div id="buy-rows"></div>
   </div>
   <div id="channel" hidden>
@@ -141,8 +144,12 @@
 <div id="overlay" class="overlay">
   <section class="panel" role="dialog" aria-modal="true" aria-labelledby="overlay-title">
     <h1 id="overlay-title">Kestrel <span>Yard</span></h1>
-    <p id="overlay-copy">A round-based tactical FPS in a dusk container yard. You lead Ember Squad: plant the charge at Site K or eliminate Harbour Watch. They will do the same to you. First to 7 rounds.</p>
+    <p id="overlay-copy">A round-based tactical FPS in a dusk container yard — or under floodlights on Night Shift. You lead Ember Squad: plant the charge at the site or eliminate Harbour Watch. They will do the same to you. First to 7 rounds.</p>
     <button id="play" type="button">Click to play</button>
+    <div class="map-pick"><span>Map:</span>
+      <button id="map-yard" type="button">Kestrel Yard · dusk</button>
+      <button id="map-night" type="button">Night Shift · floodlights</button>
+    </div>
     <ul class="keys">
       <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move · <kbd>Ctrl</kbd> Crouch</li>
       <li><kbd>Mouse</kbd> Look · <kbd>Click</kbd> Fire</li>

@@ -22,6 +22,17 @@ between rounds buys weapons from the buy menu; bots on both teams use
 waypoint AI. The HUD shows health, ammunition, the round timer and the
 score. Gunfire rewards accuracy over speed.
 
+## Night Shift — the second map
+
+The same yard, played after dark: **Night Shift** turns the map 90° (the
+lanes run west to east, attackers spawn at the west gate, the site sits at
+the east end), lights it with floodlights and a lit gantry crane over mid
+lane, and puts stars over the fence. Pick it on the start screen
+(`?map=night`). Round 4 also adds the **VK-3 Tempest**, a three-round
+burst rifle ($1,900, buy key 2), and a defence that rotates: Harbour
+Watch shifts one hold slot every round, so no round plays the same
+defence twice.
+
 ## How the entry is handed in
 
 `main.ts` (Node 22, standard library only) copies `game/` and
@@ -35,7 +46,7 @@ mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
 
 Note on screenshots: the GitHub snapshot route can only push UTF-8 text,
 so the binary `screenshots/*.jpg` cannot travel in the repository tree.
-`screenshots-data.ts` therefore embeds the same three real captures as
+`screenshots-data.ts` therefore embeds the same four real captures as
 base64 text, and `main.ts` writes them out when no `screenshots/` files
 are present beside it (real files on disk always win). The decoded images
 are byte-identical to the captures, so the graded run builds the same
@@ -45,7 +56,7 @@ dossier as a local run.
 
 - `game/` — the playable game (ES modules, import map to the vendored
   three.js 0.187.0 under `game/vendor/three/`)
-- `screenshots/` — 3 real renders of the game (start / play / end)
+- `screenshots/` — 4 real renders of the game (start / play / Night Shift / end)
 - `screenshots-data.ts` — the same captures embedded as base64 (fallback)
 - `main.ts` — the program the grader runs (`node /bot/main.ts`)
 - `serve.ts` — a tiny static server for local play-testing

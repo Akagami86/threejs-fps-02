@@ -14,19 +14,22 @@
 // segment test, so a bot behind a container genuinely cannot see you.
 // Gunfire it cannot see still draws it: main.js reports noise and a bot
 // with no target paths toward the nearest waypoint to the sound. A flash
-// grenade sets blindUntil and the bot simply stands, sightless.
+// grenade sets blindUntil and the bot simply stands, sightless. Harbour
+// Watch rotates its defence every round (see resetRound): each defender
+// shifts one hold slot, so the site stack and the mid hold change hands
+// and no round plays the same defence twice in a row.
 import * as THREE from 'three';
 import { PALETTE } from './palette.js';
 import { createBody } from './player.js';
 import { WEAPONS, damageAt } from './weapons.js';
-import { ATTACK_SPAWNS, DEFEND_SPAWNS, inSite } from './world.js';
+import { inSite } from './world.js';
 
 const ATK_NAMES = ['Rook', 'Sable', 'Milo'];
 const DEF_NAMES = ['Vera', 'Holt', 'Ilya', 'Bran'];
 const ATK_GOALS = [15, 14, 16]; // site centre, site west, site east
 const DEF_HOLDS = [21, 12, 14, 16]; // site entry, mid-north, site west, site east
 
-export function createBots(scene, world, rng, hooks) {
+export function createBots(scene, world, rng, hooks, map) {
   const colliders = world.colliders;
   const teamMats = {
     atk: new THREE.MeshStandardMaterial({ color: new THREE.Color(PALETTE.accent), roughness: 0.7 }),
@@ -104,14 +107,18 @@ export function createBots(scene, world, rng, hooks) {
     bot.goalNode = nodeIdx;
   }
 
-  function resetRound() {
-    const atkSpawns = [ATTACK_SPAWNS[0], ATTACK_SPAWNS[2], ATTACK_SPAWNS[3]];
+  function resetRound(roundNo = 1) {
+    // Harbour Watch rotates its defence every round: each defender shifts
+    // one hold slot, so the site stack and the mid hold change hands and
+    // no round plays the same defence twice in a row.
+    const rot = ((roundNo - 1) % DEF_HOLDS.length + DEF_HOLDS.length) % DEF_HOLDS.length;
+    const atkSpawns = [map.attackSpawns[0], map.attackSpawns[2], map.attackSpawns[3]];
     for (const bot of bots) {
       const c = bot.combatant;
       c.health = 100;
       c.alive = true;
       c.armor = bot.money >= 1450;
-      bot.weaponKey = bot.money >= 2700 ? 'rifle' : bot.money >= 1200 ? 'smg' : 'pistol';
+      bot.weaponKey = bot.money >= 2700 ? 'rifle' : bot.money >= 1900 ? 'burst' : bot.money >= 1200 ? 'smg' : 'pistol';
       bot.money -= WEAPONS[bot.weaponKey].price;
       if (c.armor) bot.money -= 650;
       bot.target = null;
@@ -123,14 +130,14 @@ export function createBots(scene, world, rng, hooks) {
       bot.group.visible = true;
       if (bot.team === 'atk') {
         const [x, z] = atkSpawns[bot.index];
-        bot.bodyApi.teleport(x, z, 0);
+        bot.bodyApi.teleport(x, z, map.rotate ? -Math.PI / 2 : 0);
         bot.isPlanter = bot.index === 0;
         setPathTo(bot, ATK_GOALS[bot.index]);
       } else {
-        const [x, z] = DEFEND_SPAWNS[bot.index];
-        bot.bodyApi.teleport(x, z, Math.PI);
+        const [x, z] = map.defendSpawns[bot.index];
+        bot.bodyApi.teleport(x, z, map.rotate ? Math.PI / 2 : Math.PI);
         bot.isPlanter = false;
-        setPathTo(bot, DEF_HOLDS[bot.index]);
+        setPathTo(bot, DEF_HOLDS[(bot.index + rot) % DEF_HOLDS.length]);
       }
       bot.scanYaw = bot.body.yaw;
     }
@@ -272,7 +279,7 @@ export function createBots(scene, world, rng, hooks) {
       bot.bodyApi.step(dt, 0, 0, {});
       bot.atGoal = true;
     }
-    bot.atSite = bot.team === 'atk' && inSite(bot.body.position.x, bot.body.position.z);
+    bot.atSite = bot.team === 'atk' && inSite(map, bot.body.position.x, bot.body.position.z);
   }
 
   return {

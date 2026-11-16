@@ -15,8 +15,13 @@ export const WEAPONS = {
   rifle: { name: 'Longshore Rifle', price: 2700, damage: 34, headMult: 3.4, interval: 0.1, auto: true, mag: 30, reserve: 90, reload: 1.9, spreadStill: 0.002, spreadMove: 0.03, pellets: 1, kick: 0.011, speedScale: 0.97 },
   shotgun: { name: 'Breaker Shotgun', price: 1100, damage: 11, headMult: 1.8, interval: 0.85, auto: false, mag: 6, reserve: 24, reload: 2.4, spreadStill: 0.045, spreadMove: 0.06, pellets: 8, kick: 0.032, speedScale: 0.99 },
   sniper: { name: 'Harbour Marksman', price: 3400, damage: 96, headMult: 2.0, interval: 1.45, auto: false, mag: 5, reserve: 20, reload: 2.6, spreadStill: 0.0006, spreadMove: 0.07, pellets: 1, kick: 0.036, speedScale: 0.94, zoom: true },
+  // Night Shift's new gun: a three-round burst rifle. One click sends three
+  // disciplined rounds at 0.09 s apart, then a 0.34 s pause — the burst
+  // rewards a still aim and punishes spray, the same accuracy economy as
+  // the rest of the armoury, in a different rhythm.
+  burst: { name: 'VK-3 Tempest', price: 1900, damage: 30, headMult: 3.2, interval: 0.09, auto: false, burst: 3, burstGap: 0.34, mag: 24, reserve: 72, reload: 1.8, spreadStill: 0.003, spreadMove: 0.032, pellets: 1, kick: 0.012, speedScale: 0.98 },
 };
-export const BUY_ORDER = ['smg', 'rifle', 'shotgun', 'sniper'];
+export const BUY_ORDER = ['smg', 'burst', 'rifle', 'shotgun', 'sniper'];
 export const GRENADE_PRICES = { he: 300, flash: 200 };
 export const ARMOR_PRICE = 650;
 
@@ -69,6 +74,20 @@ const VIEW_BUILDERS = {
     lens.position.set(0, 0.09, -0.09);
     g.add(receiver, barrel, scope, lens);
   },
+  burst(g, dark, grip, accent) {
+    const receiver = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.1, 0.42), dark);
+    const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.035, 0.36), grip);
+    barrel.position.set(0, 0.03, -0.36);
+    const stock = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.08, 0.2), grip);
+    stock.position.set(0, -0.02, 0.3);
+    // The burst selector: three small accent ticks on the receiver.
+    for (let i = 0; i < 3; i += 1) {
+      const tick = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.03, 0.02), accent);
+      tick.position.set(-0.03 + i * 0.03, 0.07, 0.08);
+      g.add(tick);
+    }
+    g.add(receiver, barrel, stock);
+  },
 };
 
 export function createArsenal(camera) {
@@ -92,7 +111,7 @@ export function createArsenal(camera) {
 
   const owned = { pistol: { mag: WEAPONS.pistol.mag, reserve: WEAPONS.pistol.reserve } };
   let current = 'pistol';
-  const state = { cooldown: 0, reloadLeft: 0, flash: 0, kick: 0, bob: 0 };
+  const state = { cooldown: 0, reloadLeft: 0, flash: 0, kick: 0, bob: 0, burstLeft: 0 };
 
   function rebuild() {
     while (holder.children.length) holder.remove(holder.children[0]);
@@ -126,12 +145,14 @@ export function createArsenal(camera) {
       owned.pistol = { mag: WEAPONS.pistol.mag, reserve: WEAPONS.pistol.reserve };
       current = 'pistol';
       state.reloadLeft = 0;
+      state.burstLeft = 0;
       rebuild();
     },
     select(key) {
       if (!owned[key] || key === current) return false;
       current = key;
       state.reloadLeft = 0;
+      state.burstLeft = 0;
       state.cooldown = Math.max(state.cooldown, 0.22);
       rebuild();
       return true;
@@ -142,12 +163,26 @@ export function createArsenal(camera) {
     wantsReload() { return inst().mag === 0 && state.reloadLeft === 0 && inst().reserve > 0; },
     consume() {
       inst().mag -= 1;
-      state.cooldown = def().interval;
+      const d = def();
+      if (d.burst) {
+        // First shot of a burst arms the remaining rounds; each following
+        // shot counts one down. Inside a burst the gap is the interval;
+        // after the last round the longer burst gap applies.
+        if (state.burstLeft === 0) state.burstLeft = d.burst - 1;
+        else state.burstLeft -= 1;
+        state.cooldown = state.burstLeft > 0 ? d.interval : (d.burstGap ?? d.interval);
+      } else {
+        state.cooldown = d.interval;
+      }
+      // An empty magazine ends a burst: no round may fire on its own
+      // after a reload.
+      if (inst().mag === 0) state.burstLeft = 0;
       state.flash = 0.055;
-      state.kick = Math.min(0.09, def().kick * 4.5);
+      state.kick = Math.min(0.09, d.kick * 4.5);
     },
     reload() {
       if (state.reloadLeft > 0 || inst().mag === def().mag || inst().reserve === 0) return false;
+      state.burstLeft = 0;
       state.reloadLeft = def().reload;
       return true;
     },
