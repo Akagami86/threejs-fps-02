@@ -11,10 +11,11 @@
 // Outside the grader, MAKEFUN_OUTPUT_DIR stands in for /output:
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
 
-import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDossier } from './vendor/makefun-threejs.ts';
+import { SCREENSHOTS } from './screenshots-data.ts';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
 const out = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
@@ -22,7 +23,22 @@ const out = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
 mkdirSync(out, { recursive: true });
 cpSync(join(here, 'game'), join(out, 'game'), { recursive: true });
 mkdirSync(join(out, 'screenshots'), { recursive: true });
-if (existsSync(join(here, 'screenshots'))) cpSync(join(here, 'screenshots'), join(out, 'screenshots'), { recursive: true });
+// Screenshots on disk win when present. Otherwise fall back to the embedded
+// copies in screenshots-data.ts: the GitHub snapshot route only pushes UTF-8
+// text, so the binary screenshots/*.jpg cannot travel in the repository tree,
+// and without any image buildDossier throws ("screenshots/ holds no image")
+// and the graded run fails — that is what rejected round 2 (run_completes).
+// The embedded copies decode to the same real captures, byte for byte.
+const shotsDir = join(here, 'screenshots');
+const hasShotsOnDisk =
+  existsSync(shotsDir) && readdirSync(shotsDir).some((f) => /\.(png|jpe?g)$/i.test(f));
+if (hasShotsOnDisk) {
+  cpSync(shotsDir, join(out, 'screenshots'), { recursive: true });
+} else {
+  for (const shot of SCREENSHOTS) {
+    writeFileSync(join(out, 'screenshots', shot.name), Buffer.from(shot.base64, 'base64'));
+  }
+}
 
 // The scorer's own caps (reference/gate.json): only text_max_bytes shapes the bytes; the others refuse an entry the
 // scorer would refuse (more than 4 screenshots or one over 256 KiB; more than 993 files in game/ or 48 MiB of game
